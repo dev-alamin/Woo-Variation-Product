@@ -163,3 +163,19 @@ function woo_variation_product() {
 
 // Kick-off the plugin
 woo_variation_product();
+
+// add_action( 'woocommerce_before_add_to_cart_quantity', 'bbloomer_display_dropdown_variation_add_cart' );
+ 
+function bbloomer_display_dropdown_variation_add_cart() {
+   global $product;
+   if ( $product->is_type( 'variable' ) ) {
+      wc_enqueue_js( "
+         $( 'input.variation_id' ).change( function(){
+            if( '' != $(this).val() ) {
+               var var_id = $(this).val();
+               alert('You just selected variation #' + var_id);
+            }
+         });
+      " );
+   }
+}

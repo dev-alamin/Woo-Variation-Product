@@ -13,6 +13,8 @@ function updateURL(attributeId) {
         // Get the variation value
         var variationValue = $(this).find('option:selected').text().trim();
 
+        console.log(variationValue);
+        $('.product_title span').text(variationValue);
         // Make the variation value URL-friendly
         variationValue = variationValue.toLowerCase()
             .replace(/\s+/g, '-')           // Replace spaces with hyphens
