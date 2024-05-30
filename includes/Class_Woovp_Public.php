@@ -9,12 +9,15 @@ namespace WooVP;
  * @package WooVariationProduct
  */
 class Class_Woovp_Public {
-
+    private $product;
     /**
      * Constructor.
      * Initializes the class and sets up the necessary hooks.
      */
     public function __construct() {
+        global $product;
+        $this->product = $product;
+
         $this->add_hooks();
     }
 
@@ -343,12 +346,7 @@ class Class_Woovp_Public {
      * @return string The product slug.
      */
     public function get_product_slug_from_url( $url ) {
-        // $path = parse_url( $url, PHP_URL_PATH );
-        // $parts = trim($path, '/');
-        // $product_slug = str_replace( '/', '-', $parts );
-        // return $product_slug;
-
-        $urls = trim( $_SERVER['REQUEST_URI'] , '/' );
+        $urls = trim( $url , '/' );
         $urls = explode( '/', $urls );
         $flavour = '';
         
@@ -358,11 +356,26 @@ class Class_Woovp_Public {
             $flavour = str_replace( '-', ' ', $urls['1'] );
             $flavour = ucwords( $flavour );
             
-            $flavour = 'Flavour: ' . $flavour;
+            if( ! empty( $this->hasAttribute( 'product-colour' ) ) ) {
+                $flavour = 'Product Colour: ' . $flavour;
+            }elseif( ! empty( $this->hasAttribute( 'flavour' ) ) ) {
+                $flavour = 'Flavour: ' . $flavour;
+            }
             // $flavour = 'Product Colour: ' . $flavour;
         }
 
         return esc_html( $flavour );
+    }
+
+    /**
+     * Checks if a WooCommerce variable product has a specified attribute term assigned.
+     *
+     * @param int $product_id The ID of the WooCommerce product.
+     * @param string $attribute The attribute name to check (e.g., 'pa_flavour', 'pa_color').
+     * @return bool True if the variable product has the specified attribute term assigned, false otherwise.
+     */
+    public function hasAttribute( $attribute ) {
+        return !empty($this->product) && $this->product->get_attribute( $attribute );
     }
 
     /**
