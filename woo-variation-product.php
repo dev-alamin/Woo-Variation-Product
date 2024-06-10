@@ -103,6 +103,7 @@ spl_autoload_register( 'woovp_autoloader' );
         $this->define_constants();
         new \WooVP\Class_Woovp_Public();
         new \WooVP\Assets();
+        new \WooVP\Ajax();
         // Additional methods can be called here, such as enqueue scripts or initializing classes.
     }
 

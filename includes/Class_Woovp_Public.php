@@ -51,6 +51,10 @@ class Class_Woovp_Public {
         add_action( 'pre_get_posts', [ $this, 'include_product_variations_in_search_results' ]);
         
         add_action( 'woocommerce_product_query', [ $this, 'custom_product_category_query' ] );
+
+        add_action( 'woocommerce_before_add_to_cart_quantity', [ $this, 'display_dropdown_variation_add_cart' ] );
+
+        add_action( 'wp_footer', [ $this, 'add_inline_script_for_specific_product' ] );
     }
 
     /**
@@ -108,10 +112,10 @@ class Class_Woovp_Public {
      */
     public function vh_get_variation_ids() {
         // Check if the variation IDs are already cached
-        $cached_variation_ids = get_transient('cached_variation_ids');
-        if ($cached_variation_ids !== false) {
-            return $cached_variation_ids;
-        }
+        // $cached_variation_ids = get_transient('cached_variation_ids');
+        // if ($cached_variation_ids !== false) {
+        //     return $cached_variation_ids;
+        // }
 
         // If not cached, perform the query
         $category_ids_to_include = array(16,19); // Add the IDs of the categories to include
@@ -121,6 +125,7 @@ class Class_Woovp_Public {
         $args = array(
             'post_type'      => 'product_variation',
             'posts_per_page' => -1,
+            'post_parent' => 509,
             'tax_query'      => array(
                 'relation' => 'OR',
                 array(
@@ -143,7 +148,7 @@ class Class_Woovp_Public {
             ),
         );
 
-        $variations_query = new \WP_Query($args);
+        $variations_query = new \WP_Query( $args );
 
         $variation_ids = array();
         if ($variations_query->have_posts()) {
@@ -315,28 +320,58 @@ class Class_Woovp_Public {
         return $vars;
     }
 
-        /**
+    /**
      * Retrieves the variation description instead of the parent product description.
      */
     public function custom_variation_description() {
-        global $post;
-
-        if (is_singular('product')) {
-            $product_data = $this->vh_get_variation_data();
-            
-            if ($product_data) {
-                $variation_id = $product_data->ID;
-                $parent_product_id = $product_data->post_parent;
-
-                if ($variation_id) {
-                    $variation_description = $this->get_variation_description($variation_id);
-
-                    if ($variation_description) {
+        if ( is_singular('product') ) {
+            global $post;
+    
+            $product_ids = [509];
+            $product = wc_get_product($post->ID);
+    
+            if ($product && $this->available_product( $product->get_id(), $product_ids ) ) {
+                $product_data = $this->vh_get_variation_data();
+                
+                if ($product_data) {
+                    $variation_id = $product_data->ID;
+                    $parent_product_id = $product_data->post_parent;
+    
+                    if ($variation_id) {
+                        // Get the variation description
+                        $variation_description = $this->get_variation_description($variation_id);
+    
+                        // Get the post content
+                        $post_content = $post->post_content;
+    
+                        // Check if post content contains the FAQ block
+                        $faq_block_pattern = '/<!--\s*wp:rank-math\/faq-block\s*(.*?)-->(.*?)<!--\s*\/wp:rank-math\/faq-block\s*-->/s';
+                        if (preg_match($faq_block_pattern, $post_content, $matches)) {
+                            // Concatenate FAQ block content with variation description
+                            $variation_description .= '<div class="faq-block">' . $matches[0] . '</div>';
+                        }
+    
+                        // Update the post content
                         $post->post_content = $variation_description;
                     }
                 }
             }
         }
+    }    
+
+    /**
+     * Checks if a given product ID is in the list of available product IDs.
+     *
+     * This function checks if the provided product ID exists within the specified
+     * array of product IDs. It returns true if the product ID is found in the array,
+     * and false otherwise.
+     *
+     * @param int $product The product ID to check.
+     * @param array $product_ids Optional. An array of product IDs to check against. Default is an empty array.
+     * @return bool True if the product ID is in the array, false otherwise.
+     */
+    private function available_product(int $product, array $product_ids = []) : bool {
+        return in_array($product, $product_ids);
     }
 
     /**
@@ -345,26 +380,39 @@ class Class_Woovp_Public {
      * @param string $url The URL.
      * @return string The product slug.
      */
-    public function get_product_slug_from_url( $url ) {
-        $urls = trim( $url , '/' );
-        $urls = explode( '/', $urls );
-        $flavour = '';
-        
-        if( ! is_array( $urls ) ) return;
+    private function get_product_slug() {
+        $current_url = home_url(add_query_arg(array(), $GLOBALS['wp']->request));
 
-        if( count( $urls ) >= 1 ) {
-            $flavour = str_replace( '-', ' ', $urls['1'] );
-            $flavour = ucwords( $flavour );
-            
-            if( ! empty( $this->hasAttribute( 'product-colour' ) ) ) {
-                $flavour = 'Product Colour: ' . $flavour;
-            }elseif( ! empty( $this->hasAttribute( 'flavour' ) ) ) {
-                $flavour = 'Flavour: ' . $flavour;
-            }
-            // $flavour = 'Product Colour: ' . $flavour;
+        $url_parts = explode('/', $current_url);
+        return end($url_parts);
+    }
+
+    /**
+     * Formats the product slug for database query.
+     * This function sanitizes and formats the product slug retrieved
+     * from the URL to match the format expected for querying variations
+     * in the database. It replaces hyphens with spaces, capitalizes
+     * the first letter of each word, and prefixes either "Product Colour: "
+     * or "Flavour: " based on the product attribute.
+     *
+     * @return string The formatted product slug.
+     */
+    private function get_formatted_product_slug(){
+        $product_slug = $this->get_product_slug();
+        $product_slug = sanitize_text_field($product_slug);
+        $product_slug = str_replace('-', ' ', $product_slug);
+        $product_slug = ucwords($product_slug);
+
+        $prefix = '';
+        if ( $this->hasAttribute( 'product-colour' ) ) {
+            $prefix = 'Product Colour: ';
+        } elseif ( $this->hasAttribute( 'flavour' ) ) {
+            $prefix = 'Flavour: ';
         }
 
-        return esc_html( $flavour );
+        $formatted_slug = $prefix . $product_slug;
+
+        return $formatted_slug;
     }
 
     /**
@@ -374,8 +422,11 @@ class Class_Woovp_Public {
      * @param string $attribute The attribute name to check (e.g., 'pa_flavour', 'pa_color').
      * @return bool True if the variable product has the specified attribute term assigned, false otherwise.
      */
-    public function hasAttribute( $attribute ) {
-        return !empty($this->product) && $this->product->get_attribute( $attribute );
+    private function hasAttribute( $attribute ) {
+        $product_id = get_queried_object_id();
+        $product    = wc_get_product( $product_id );
+
+        return !empty($product) && $product->get_attribute( $attribute );
     }
 
     /**
@@ -384,7 +435,7 @@ class Class_Woovp_Public {
      * @param int $variation_id The variation ID.
      * @return string|null The variation description.
      */
-    public function get_variation_description( $variation_id ) {
+    private function get_variation_description( $variation_id ) {
         global $wpdb;
         $variation_description = $wpdb->get_var($wpdb->prepare("
             SELECT meta_value
@@ -411,15 +462,15 @@ class Class_Woovp_Public {
             $flavour = str_replace('Flavour:', '', $attrs->post_excerpt);
             $color   = str_replace('Product Colour:', '', $attrs->post_excerpt);
 
-            if (isset($attributes['attribute_pa_flavour'])) {
-                unset($attributes['attribute_pa_flavour']);
+            if ( isset( $attributes['attribute_pa_flavour'] ) ) {
+                unset( $attributes['attribute_pa_flavour'] );
                 $attributes['attribute_pa_flavour'] = array(
                     'label' => __('Flavour', 'woocommerce'),
                     'value' => $flavour,
                 );
             }
 
-            if (isset($attributes['attribute_pa_product-colour'])) {
+            if ( isset( $attributes['attribute_pa_product-colour'] ) ) {
                 $attributes['attribute_pa_product-colour'] = array(
                     'label' => __('Colour', 'woocommerce'),
                     'value' => $color,
@@ -437,23 +488,24 @@ class Class_Woovp_Public {
      */
     public function vh_get_variation_data() {
         global $wpdb;
-
+    
         if ( ! is_singular( 'product' ) ) return;
-
-        $requested_url = $_SERVER['REQUEST_URI'];
-        $product_slug = $this->get_product_slug_from_url($requested_url);
-
+    
+        $product_id = get_queried_object_id();
+    
+        $product_slug = $this->get_formatted_product_slug();
+    
         if ( ! $product_slug) return null;
-
-        if ($product_slug) {
-            $product_data = $wpdb->get_row($wpdb->prepare("
+    
+        // Query the database for variation data
+        $product_data = $wpdb->get_row($wpdb->prepare("
             SELECT ID, post_parent, post_excerpt
             FROM {$wpdb->posts}
             WHERE post_excerpt = %s
             AND post_type = 'product_variation'
             AND post_parent = %d
-        ", $product_slug, get_the_ID() ) );
-        }
+        ", $product_slug, $product_id ) );
+    
         return $product_data;
     }
 
@@ -526,6 +578,135 @@ class Class_Woovp_Public {
 
             $query->set( 'post__not_in', array_unique($exclude_ids) );
             $query->set( 'post_type', array( 'product' ) );
+        }
+    }
+
+    public function display_dropdown_variation_add_cart() {
+        global $product;
+    
+        if ( $product->is_type( 'variable' ) ) {
+            wc_enqueue_js( "
+                $( 'input.variation_id' ).change( function() {
+                    if ( $(this).val() !== '' ) {
+                        var variationId = $(this).val();
+                        var nonce = '" . wp_create_nonce( 'handle_variation_change' ) . "';
+    
+                        $.ajax({
+                            url: woovpAjaxVar.url,
+                            type: 'POST',
+                            data: {
+                                action: 'handle_variation_change',
+                                variation_id: variationId,
+                                // nonce: nonce
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    // Use the flavour value from the response
+                                    var flavourValue = response.data.flavour_value;
+                                    var parentProductTitle = response.data.parent_product_title;
+                                    if( flavourValue != ''){
+                                        // Update the product title with the flavour value
+                                        var newTitle = flavourValue + ' - ' + parentProductTitle;
+                                        $('.product_title').text(newTitle);
+                                    }
+                                } else {
+                                    console.error('Error:', response.data);
+                                }
+                            },
+                            error: function(xhr, status, error) {
+                                console.error('AJAX error:', status, error);
+                            }
+                        });
+                    }
+                });
+            " );
+        }
+    }
+
+    public function frontent_script(){
+        ?>
+        <script> 
+            jQuery(document).ready(function($) {
+            // Function to copy text from one element to another
+            function copyVariationDescription() {
+                var variationDescription = $('.single-product-details .with-flavour-picker .woocommerce-variation-description').html();
+                if (variationDescription) {
+                    $('#tab-description').html('');
+                    $('#tab-description').html(variationDescription);
+                }
+            }
+
+            // Trigger the function when a variation is selected
+            $('.variations_form').on('show_variation', function(event, variation) {
+                copyVariationDescription();
+                copyFlavourToAdditionalInfo();
+            });
+
+            // Function to copy text from the selected flavour to the additional information tab
+            function copyFlavourToAdditionalInfo() {
+                var selectedFlavour = $('.single-product .selected_flavour').text();
+                $('.woocommerce-product-attributes-item--attribute_pa_flavour .woocommerce-product-attributes-item__value').html('<p>' + selectedFlavour + '</p>');
+            }
+
+            // Trigger the function on click of the additional information tab link
+            $('#tab-title-additional_information a').on('click', function(event) {
+                event.preventDefault(); // Prevent default anchor behavior
+                copyFlavourToAdditionalInfo();
+            });
+
+            // Trigger the function on page load in case a variation is pre-selected
+            copyVariationDescription();
+            });
+        </script>
+        <?php 
+    }
+
+    public function add_inline_script_for_specific_product() {
+        if ( is_product() ) {
+            $product_id = get_queried_object_id();
+    
+            $specific_product_ids = [509];
+    
+            if ( $this->available_product( $product_id, $specific_product_ids ) ) {
+                
+                // Add your inline script
+               ?>
+               <script>
+                    jQuery(document).ready(function($) {
+                    // Function to copy text from one element to another
+                    function copyVariationDescription() {
+                        var variationDescription = $('.single-product-details .with-flavour-picker .woocommerce-variation-description').html();
+                        if (variationDescription) {
+                            $('#tab-description p').html('');
+                            $('#tab-description p').html(variationDescription);
+                        }
+                    }
+
+                    // Trigger the function when a variation is selected
+                    $('.variations_form').on('show_variation', function(event, variation) {
+                        copyVariationDescription();
+                        copyFlavourToAdditionalInfo();
+                    });
+
+                    // Function to copy text from the selected flavour to the additional information tab
+                    function copyFlavourToAdditionalInfo() {
+                        var selectedFlavour = $('.single-product .selected_flavour').text();
+                        $('.woocommerce-product-attributes-item--attribute_pa_flavour .woocommerce-product-attributes-item__value').html('<p>' + selectedFlavour + '</p>');
+                    }
+
+                    // Trigger the function on click of the additional information tab link
+                    $('#tab-title-additional_information a').on('click', function(event) {
+                        event.preventDefault(); // Prevent default anchor behavior
+                        copyFlavourToAdditionalInfo();
+                    });
+
+                    // Trigger the function on page load in case a variation is pre-selected
+                    copyVariationDescription();
+                    });
+                </script>
+                    <?php 
+                // wp_add_inline_script('woovp_frontend_script', $inline_script);
+            }
         }
     }
 }
