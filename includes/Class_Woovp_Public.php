@@ -9,15 +9,17 @@ namespace WooVP;
  * @package WooVariationProduct
  */
 class Class_Woovp_Public {
-    private $product;
+    /**
+     * @var array List of target product IDs.
+     */
+    private array $target_products;
+
     /**
      * Constructor.
      * Initializes the class and sets up the necessary hooks.
      */
     public function __construct() {
-        global $product;
-        $this->product = $product;
-
+        $this->target_products = [509];
         $this->add_hooks();
     }
 
@@ -55,6 +57,17 @@ class Class_Woovp_Public {
         add_action( 'woocommerce_before_add_to_cart_quantity', [ $this, 'display_dropdown_variation_add_cart' ] );
 
         add_action( 'wp_footer', [ $this, 'add_inline_script_for_specific_product' ] );
+
+        // add_action('init', [ $this, 'generate_variation_sitemap' ]);
+
+        // Alternatively, schedule the sitemap generation daily
+        if (!wp_next_scheduled('daily_variation_sitemap_generation')) {
+            wp_schedule_event(time(), 'daily', 'generate_variation_sitemap');
+        }
+
+        // Action to trigger the sitemap generation
+        add_action('generate_variation_sitemap', [ $this, 'generate_variation_sitemap' ]);
+
     }
 
     /**
@@ -125,7 +138,7 @@ class Class_Woovp_Public {
         $args = array(
             'post_type'      => 'product_variation',
             'posts_per_page' => -1,
-            'post_parent' => 509,
+            'post_parent__in' => $this->target_products,
             'tax_query'      => array(
                 'relation' => 'OR',
                 array(
@@ -163,6 +176,49 @@ class Class_Woovp_Public {
 
         return $variation_ids;
     }
+
+    public function generate_variation_sitemap() {
+        // Get the variation IDs
+        $variation_ids = $this->vh_get_variation_ids();
+    
+        if (empty($variation_ids)) {
+            return;
+        }
+    
+        // Start XML output
+        $sitemap = '<?xml version="1.0" encoding="UTF-8"?>';
+        $sitemap .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+    
+        // Loop through each variation and create a URL entry
+        foreach ($variation_ids as $variation_id) {
+            $permalink = get_permalink($variation_id);
+            $lastmod = get_post_modified_time('Y-m-d\TH:i:sP', true, $variation_id);
+            
+            $sitemap .= '<url>';
+            $sitemap .= '<loc>' . esc_url($permalink) . '</loc>';
+            $sitemap .= '<lastmod>' . $lastmod . '</lastmod>';
+            $sitemap .= '</url>';
+        }
+    
+        // Close XML output
+        $sitemap .= '</urlset>';
+    
+        // Save the sitemap to a file
+        $sitemap_path = ABSPATH . 'sitemap-variations.xml';
+
+        if (is_writable(ABSPATH)) {
+            $result = file_put_contents($sitemap_path, $sitemap);
+    
+            if ($result === false) {
+                error_log('Failed to write the sitemap file.');
+            }
+        } else {
+            error_log('The directory is not writable.');
+        }
+    
+        return $sitemap_path;
+    }
+    
 
     /**
      * Updates the variation IDs transient when a product is saved.
@@ -289,18 +345,28 @@ class Class_Woovp_Public {
      * Removes the product slug from the product and variation URLs.
      */
     public function custom_remove_product_slug() {
+        // Rewrite rule for product with flavor attribute
         add_rewrite_rule(
-            '^([^/]+)/([^/]+)/?$',
+            '^product/([^/]+)/flavour/([^/]+)/?$',
             'index.php?product=$matches[1]&attribute_pa_flavour=$matches[2]',
             'top'
         );
-
+    
+        // Rewrite rule for product with product color attribute
         add_rewrite_rule(
-            '^([^/]+)/([^/]+)/?$',
+            '^product/([^/]+)/color/([^/]+)/?$',
             'index.php?product=$matches[1]&attribute_pa_product-colour=$matches[2]',
             'top'
         );
-
+    
+        // Rewrite rule for regular product without attributes
+        add_rewrite_rule(
+            '^product/([^/]+)/?$',
+            'index.php?product=$matches[1]',
+            'top'
+        );
+    
+        // Rewrite rule for product without prefix
         add_rewrite_rule(
             '^([^/]+)/?$',
             'index.php?product=$matches[1]',
@@ -327,7 +393,7 @@ class Class_Woovp_Public {
         if ( is_singular('product') ) {
             global $post;
     
-            $product_ids = [509];
+            $product_ids = $this->target_products;
             $product = wc_get_product($post->ID);
     
             if ($product && $this->available_product( $product->get_id(), $product_ids ) ) {
@@ -454,7 +520,9 @@ class Class_Woovp_Public {
      * @return array The modified attributes.
      */
     public function update_flavour_attribute( $attributes, $product ) {
-        if ( $product->is_type( 'variable' ) ) {
+        $available_product = $this->available_product( $product->get_id(), $this->target_products );
+
+        if ( $product->is_type( 'variable' ) && $available_product ) {
             $attrs = $this->vh_get_variation_data();
 
             if ( ! $attrs ) return $attributes;
@@ -665,12 +733,8 @@ class Class_Woovp_Public {
         if ( is_product() ) {
             $product_id = get_queried_object_id();
     
-            $specific_product_ids = [509];
-    
-            if ( $this->available_product( $product_id, $specific_product_ids ) ) {
-                
-                // Add your inline script
-               ?>
+            if ( $this->available_product( $product_id, $this->target_products ) ) {
+                ?>
                <script>
                     jQuery(document).ready(function($) {
                     // Function to copy text from one element to another

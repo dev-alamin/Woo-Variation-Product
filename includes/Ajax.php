@@ -30,19 +30,19 @@ class Ajax {
         }
     
         // Get the parent product
-        $parent_id = $variation->get_parent_id();
-        $parent_product = wc_get_product( $parent_id );
+        $parent_id            = $variation->get_parent_id();
+        $parent_product       = wc_get_product( $parent_id );
         $parent_product_title = $parent_product ? $parent_product->get_title() : '';
-        $flavour_value = $variation->get_attribute( 'flavour' );
-        $colour_value = $variation->get_attribute( 'product-colour' );
-        $color_flavour_value = $flavour_value ? $flavour_value : $colour_value;
-        $has_color_flavour = $color_flavour_value ? $color_flavour_value : '';
+        $flavour_value        = $variation->get_attribute( 'flavour' );
+        $colour_value         = $variation->get_attribute( 'product-colour' );
+        $color_flavour_value  = $flavour_value ? $flavour_value : $colour_value;
+        $has_color_flavour    = $color_flavour_value ? $color_flavour_value : '';
     
         // Prepare response data
         $variation_data = array(
-            'variation_id'   => $variation_id,
-            'variation_name' => $variation->get_name(),
-            'flavour_value' => str_replace( '&amp;', '&', $has_color_flavour ),
+            'variation_id'         => $variation_id,
+            'variation_name'       => $variation->get_name(),
+            'flavour_value'        => str_replace( '&amp;', '&', $has_color_flavour ),
             'parent_product_title' => $parent_product_title,
         );
     

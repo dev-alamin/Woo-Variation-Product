@@ -72,6 +72,8 @@ spl_autoload_register( 'woovp_autoloader' );
      * Adds the necessary hooks and initializes the plugin.
      */
     public function __construct() {
+        register_deactivation_hook( __FILE__, [ $this, 'deactivate_plugin' ] );
+
         add_action('plugins_loaded', [$this, 'woovp_plugin_init']);
     }
 
@@ -128,6 +130,12 @@ spl_autoload_register( 'woovp_autoloader' );
         load_plugin_textdomain('woovp', false, dirname(plugin_basename(__FILE__)) . '/languages');
 
         $this->activate();
+    }
+
+    public function deactivate_plugin() {
+        // Clear the scheduled event on deactivation
+        $timestamp = wp_next_scheduled('daily_variation_sitemap_generation');
+        wp_unschedule_event($timestamp, 'daily_variation_sitemap_generation');
     }
 
         /**
