@@ -40,7 +40,7 @@ class Class_Woovp_Public {
         
         add_action( 'pre_get_posts', [ $this, 'display_color_variations_as_individual_products' ]);
         
-        add_filter( 'post_type_link', [ $this, 'custom_product_permalink' ], 10, 2);
+        // add_filter( 'post_type_link', [ $this, 'custom_product_permalink' ], 10, 2);
         
         add_filter( 'post_type_link', [ $this, 'custom_variation_permalink' ], 10, 2);
         
@@ -350,19 +350,34 @@ class Class_Woovp_Public {
         //     'index.php?product=$matches[1]',
         //     'top'
         // );
-        
-        // add_rewrite_rule(
-        //     '^([^/]+)/([^/]+)/?$',
-        //     'index.php?product=$matches[1]&attribute_pa_flavour=$matches[2]',
-        //     'top'
-        // );
 
-        // add_rewrite_rule(
-        //     '^([^/]+)/([^/]+)/?$',
-        //     'index.php?product=$matches[1]&attribute_pa_product-colour=$matches[2]',
-        //     'top'
-        // );
+        $product_slugs = $this->get_all_product_slugs();
+        $product_slugs_regex = implode('|', array_map('preg_quote', $product_slugs));
+    
+        if ($product_slugs_regex) {
+            add_rewrite_rule(
+                '^(' . $product_slugs_regex . ')/([^/]+)/?$',
+                'index.php?product=$matches[1]&attribute_pa_flavour=$matches[2]',
+                'top'
+            );
 
+            add_rewrite_rule(
+                '^([^/]+)/([^/]+)/?$',
+                'index.php?product=$matches[1]&attribute_pa_product-colour=$matches[2]',
+                'top'
+            );
+        }
+
+    }
+
+    private function get_all_product_slugs() {
+        global $wpdb;
+        $product_slugs = $wpdb->get_col("
+            SELECT post_name
+            FROM $wpdb->posts
+            WHERE post_type = 'product' AND post_status = 'publish'
+        ");
+        return $product_slugs;
     }
 
     /**
