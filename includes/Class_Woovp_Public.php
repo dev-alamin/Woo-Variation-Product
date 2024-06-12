@@ -345,33 +345,24 @@ class Class_Woovp_Public {
      * Removes the product slug from the product and variation URLs.
      */
     public function custom_remove_product_slug() {
-        // Rewrite rule for product with flavor attribute
-        add_rewrite_rule(
-            '^product/([^/]+)/flavour/([^/]+)/?$',
-            'index.php?product=$matches[1]&attribute_pa_flavour=$matches[2]',
-            'top'
-        );
-    
-        // Rewrite rule for product with product color attribute
-        add_rewrite_rule(
-            '^product/([^/]+)/color/([^/]+)/?$',
-            'index.php?product=$matches[1]&attribute_pa_product-colour=$matches[2]',
-            'top'
-        );
-    
-        // Rewrite rule for regular product without attributes
-        add_rewrite_rule(
-            '^product/([^/]+)/?$',
-            'index.php?product=$matches[1]',
-            'top'
-        );
-    
-        // Rewrite rule for product without prefix
-        add_rewrite_rule(
-            '^([^/]+)/?$',
-            'index.php?product=$matches[1]',
-            'top'
-        );
+        // add_rewrite_rule(
+        //     '^([^/]+)/?$',
+        //     'index.php?product=$matches[1]',
+        //     'top'
+        // );
+        
+        // add_rewrite_rule(
+        //     '^([^/]+)/([^/]+)/?$',
+        //     'index.php?product=$matches[1]&attribute_pa_flavour=$matches[2]',
+        //     'top'
+        // );
+
+        // add_rewrite_rule(
+        //     '^([^/]+)/([^/]+)/?$',
+        //     'index.php?product=$matches[1]&attribute_pa_product-colour=$matches[2]',
+        //     'top'
+        // );
+
     }
 
     /**
