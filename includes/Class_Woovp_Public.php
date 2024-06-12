@@ -58,6 +58,12 @@ class Class_Woovp_Public {
 
         add_action( 'wp_footer', [ $this, 'add_inline_script_for_specific_product' ] );
 
+        add_filter( 'post_type_link', [ $this, 'woo_variation_remove_product_slug' ], 10, 3 );
+
+        add_action( 'pre_get_posts', [ $this, 'change_slug_structure' ], 99 );
+
+        add_filter('request', [ $this, 'handle_taxonomy' ] );
+
         // add_action('init', [ $this, 'generate_variation_sitemap' ]);
 
         // Alternatively, schedule the sitemap generation daily
@@ -68,6 +74,46 @@ class Class_Woovp_Public {
         // Action to trigger the sitemap generation
         add_action('generate_variation_sitemap', [ $this, 'generate_variation_sitemap' ]);
 
+    }
+
+    public function woo_variation_remove_product_slug( $post_link, $post, $leavename ) {
+        if ( 'product' != $post->post_type || 'publish' != $post->post_status ) {
+            return $post_link;
+        }
+        $post_link = str_replace( '/product/', '/', $post_link );
+        return $post_link;
+    }
+
+    public function change_slug_structure( $query ) {
+        if ( ! $query->is_main_query() || 2 != count( $query->query ) || ! isset( $query->query['page'] ) ) {
+            return;
+        }
+        if ( ! empty( $query->query['name'] ) ) {
+            $query->set( 'post_type', array( 'post', 'product', 'page' ) );
+        } elseif ( ! empty( $query->query['pagename'] ) && false === strpos( $query->query['pagename'], '/' ) ) {
+            $query->set( 'post_type', array( 'post', 'product', 'page' ) );
+            // We also need to set the name query var since redirect_guess_404_permalink() relies on it.
+            $query->set( 'name', $query->query['pagename'] );
+        }
+    }
+
+    public function handle_taxonomy( $vars ) {
+        global $wpdb;
+        if( ! empty( $vars['pagename'] ) || ! empty( $vars['category_name'] ) || ! empty( $vars['name'] ) || ! empty( $vars['attachment'] ) ) {
+            $slug = ! empty( $vars['pagename'] ) ? $vars['pagename'] : ( ! empty( $vars['name'] ) ? $vars['name'] : ( !empty( $vars['category_name'] ) ? $vars['category_name'] : $vars['attachment'] ) );
+            $exists = $wpdb->get_var( $wpdb->prepare( "SELECT t.term_id FROM $wpdb->terms t LEFT JOIN $wpdb->term_taxonomy tt ON tt.term_id = t.term_id WHERE tt.taxonomy = 'product_cat' AND t.slug = %s" ,array( $slug )));
+            if( $exists ){
+                $old_vars = $vars;
+                $vars = array('product_cat' => $slug );
+                if ( !empty( $old_vars['paged'] ) || !empty( $old_vars['page'] ) )
+                    $vars['paged'] = ! empty( $old_vars['paged'] ) ? $old_vars['paged'] : $old_vars['page'];
+                if ( !empty( $old_vars['orderby'] ) )
+                         $vars['orderby'] = $old_vars['orderby'];
+                      if ( !empty( $old_vars['order'] ) )
+                         $vars['order'] = $old_vars['order'];	
+            }
+        }
+        return $vars;
     }
 
     /**
@@ -362,7 +408,7 @@ class Class_Woovp_Public {
             );
 
             add_rewrite_rule(
-                '^([^/]+)/([^/]+)/?$',
+                '^(' . $product_slugs_regex . ')/([^/]+)/?$',
                 'index.php?product=$matches[1]&attribute_pa_product-colour=$matches[2]',
                 'top'
             );
