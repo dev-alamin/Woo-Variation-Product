@@ -172,5 +172,3 @@ function woo_variation_product() {
 
 // Kick-off the plugin
 woo_variation_product();
-
-

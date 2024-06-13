@@ -76,6 +76,17 @@ class Class_Woovp_Public {
 
     }
 
+    /**
+     * Removes the '/product/' base from WooCommerce product URLs.
+     *
+     * This method modifies the permalink for WooCommerce products by removing the '/product/' base,
+     * allowing for cleaner URLs.
+     *
+     * @param string   $post_link The original post URL.
+     * @param WP_Post  $post      The post object.
+     * @param bool     $leavename Whether to keep the post name.
+     * @return string The modified post URL without the '/product/' base.
+     */
     public function woo_variation_remove_product_slug( $post_link, $post, $leavename ) {
         if ( 'product' != $post->post_type || 'publish' != $post->post_status ) {
             return $post_link;
@@ -84,6 +95,16 @@ class Class_Woovp_Public {
         return $post_link;
     }
 
+    /**
+     * Modifies the main query to include products when the URL structure matches certain criteria.
+     *
+     * This method adjusts the main query to ensure that requests matching specific URL structures
+     * include 'post', 'product', and 'page' post types. This is useful for ensuring that custom
+     * URLs are correctly recognized as product pages.
+     *
+     * @param WP_Query $query The main query object.
+     * @return void
+     */
     public function change_slug_structure( $query ) {
         if ( ! $query->is_main_query() || 2 != count( $query->query ) || ! isset( $query->query['page'] ) ) {
             return;
@@ -97,22 +118,49 @@ class Class_Woovp_Public {
         }
     }
 
+    /**
+     * Modifies query variables to handle custom taxonomy rewrites for 'product_cat'.
+     *
+     * This method checks if the current request matches a slug for a WooCommerce product category
+     * ('product_cat') and adjusts the query variables accordingly. If a match is found, it modifies
+     * the query to use 'product_cat' instead of the original parameters.
+     *
+     * Example:
+     * - Original URL: domain.com/category-name/
+     * - Modified query: array('product_cat' => 'category-name')
+     *
+     * @param array $vars The array of query variables.
+     * @return array Modified array of query variables.
+     */
     public function handle_taxonomy( $vars ) {
         global $wpdb;
-        if( ! empty( $vars['pagename'] ) || ! empty( $vars['category_name'] ) || ! empty( $vars['name'] ) || ! empty( $vars['attachment'] ) ) {
+        
+        // Check if certain query variables are present
+        if ( ! empty( $vars['pagename'] ) || ! empty( $vars['category_name'] ) || ! empty( $vars['name'] ) || ! empty( $vars['attachment'] ) ) {
+            // Determine the slug to check against the 'product_cat' taxonomy
             $slug = ! empty( $vars['pagename'] ) ? $vars['pagename'] : ( ! empty( $vars['name'] ) ? $vars['name'] : ( !empty( $vars['category_name'] ) ? $vars['category_name'] : $vars['attachment'] ) );
-            $exists = $wpdb->get_var( $wpdb->prepare( "SELECT t.term_id FROM $wpdb->terms t LEFT JOIN $wpdb->term_taxonomy tt ON tt.term_id = t.term_id WHERE tt.taxonomy = 'product_cat' AND t.slug = %s" ,array( $slug )));
-            if( $exists ){
+            
+            // Check if the slug exists in the 'product_cat' taxonomy
+            $exists = $wpdb->get_var( $wpdb->prepare( "SELECT t.term_id FROM $wpdb->terms t LEFT JOIN $wpdb->term_taxonomy tt ON tt.term_id = t.term_id WHERE tt.taxonomy = 'product_cat' AND t.slug = %s", array( $slug ) ) );
+            
+            // If the slug exists in 'product_cat', modify the query variables
+            if ( $exists ) {
                 $old_vars = $vars;
-                $vars = array('product_cat' => $slug );
-                if ( !empty( $old_vars['paged'] ) || !empty( $old_vars['page'] ) )
+                $vars = array('product_cat' => $slug);
+                
+                // Preserve certain original query variables if they exist
+                if ( ! empty( $old_vars['paged'] ) || ! empty( $old_vars['page'] ) ) {
                     $vars['paged'] = ! empty( $old_vars['paged'] ) ? $old_vars['paged'] : $old_vars['page'];
-                if ( !empty( $old_vars['orderby'] ) )
-                         $vars['orderby'] = $old_vars['orderby'];
-                      if ( !empty( $old_vars['order'] ) )
-                         $vars['order'] = $old_vars['order'];	
+                }
+                if ( ! empty( $old_vars['orderby'] ) ) {
+                    $vars['orderby'] = $old_vars['orderby'];
+                }
+                if ( ! empty( $old_vars['order'] ) ) {
+                    $vars['order'] = $old_vars['order'];
+                }
             }
         }
+        
         return $vars;
     }
 
@@ -332,20 +380,6 @@ class Class_Woovp_Public {
     }
 
     /**
-     * Customizes the product permalink structure.
-     *
-     * @param string $permalink The original permalink.
-     * @param WP_Post $post The post object.
-     * @return string The modified permalink.
-     */
-    public function custom_product_permalink($permalink, $post) {
-        if ($post->post_type == 'product') {
-            $permalink = home_url('/' . $post->post_name . '/');
-        }
-        return $permalink;
-    }
-
-    /**
      * Customizes the variation permalink structure.
      *
      * @param string $permalink The original permalink.
@@ -388,18 +422,27 @@ class Class_Woovp_Public {
     }
 
     /**
-     * Removes the product slug from the product and variation URLs.
+     * Adds custom rewrite rules to remove the product slug from WooCommerce product URLs.
+     *
+     * This method generates a regex pattern based on all existing product slugs and creates
+     * custom rewrite rules to match URLs without the product base. The rules handle product
+     * attributes such as flavour and product colour.
+     *
+     * Example:
+     * - Original URL: domain.com/product/product-slug/
+     * - New URL: domain.com/product-slug/attribute-value/
+     *
+     * The custom rewrite rules ensure that URLs without the product base are correctly
+     * redirected to the appropriate product pages with the specified attributes.
+     *
+     * @return void
      */
     public function custom_remove_product_slug() {
-        // add_rewrite_rule(
-        //     '^([^/]+)/?$',
-        //     'index.php?product=$matches[1]',
-        //     'top'
-        // );
-
+        // Retrieve all product slugs
         $product_slugs = $this->get_all_product_slugs();
         $product_slugs_regex = implode('|', array_map('preg_quote', $product_slugs));
-    
+
+        // If there are product slugs, add the custom rewrite rules
         if ($product_slugs_regex) {
             add_rewrite_rule(
                 '^(' . $product_slugs_regex . ')/([^/]+)/?$',
@@ -413,16 +456,28 @@ class Class_Woovp_Public {
                 'top'
             );
         }
-
     }
 
+    /**
+     * Retrieves all slugs of published WooCommerce products.
+     *
+     * This method queries the WordPress database to fetch the slugs (post names) of all published
+     * products. It returns an array of product slugs, which can be used for generating custom
+     * rewrite rules or other purposes.
+     *
+     * @global wpdb $wpdb The WordPress database abstraction object.
+     * @return array An array of slugs for all published WooCommerce products.
+     */
     private function get_all_product_slugs() {
         global $wpdb;
+
+        // Query to fetch slugs of all published WooCommerce products
         $product_slugs = $wpdb->get_col("
             SELECT post_name
             FROM $wpdb->posts
             WHERE post_type = 'product' AND post_status = 'publish'
         ");
+        
         return $product_slugs;
     }
 
