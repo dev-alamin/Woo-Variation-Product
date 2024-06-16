@@ -19,7 +19,7 @@ class Class_Woovp_Public {
      * Initializes the class and sets up the necessary hooks.
      */
     public function __construct() {
-        $this->target_products = [509];
+        $this->target_products = [932];
         $this->add_hooks();
     }
 
@@ -63,6 +63,8 @@ class Class_Woovp_Public {
         add_action( 'pre_get_posts', [ $this, 'change_slug_structure' ], 99 );
 
         add_filter('request', [ $this, 'handle_taxonomy' ] );
+
+        add_filter('woocommerce_dropdown_variation_attribute_options_args', [ $this, 'vh_select_default_option' ] ,10,1);
 
         // add_action('init', [ $this, 'generate_variation_sitemap' ]);
 
@@ -233,15 +235,15 @@ class Class_Woovp_Public {
             'post_type'      => 'product_variation',
             'posts_per_page' => -1,
             'post_parent__in' => $this->target_products,
-            'tax_query'      => array(
-                'relation' => 'OR',
-                array(
-                    'taxonomy' => 'product_cat',
-                    'field'    => 'term_id',
-                    'terms'    => $category_ids_to_include,
-                    'operator' => 'IN',
-                ),
-            ),
+            // 'tax_query'      => array(
+            //     'relation' => 'OR',
+            //     array(
+            //         'taxonomy' => 'product_cat',
+            //         'field'    => 'term_id',
+            //         'terms'    => $category_ids_to_include,
+            //         'operator' => 'IN',
+            //     ),
+            // ),
             'meta_query'     => array(
                 'relation' => 'OR',
                 array(
@@ -501,18 +503,19 @@ class Class_Woovp_Public {
             global $post;
     
             $product_ids = $this->target_products;
-            $product = wc_get_product($post->ID);
-    
+            $product     = wc_get_product($post->ID);
+
             if ($product && $this->available_product( $product->get_id(), $product_ids ) ) {
                 $product_data = $this->vh_get_variation_data();
-                
+
                 if ($product_data) {
-                    $variation_id = $product_data->ID;
+                    $variation_id      = $product_data->ID;
                     $parent_product_id = $product_data->post_parent;
-    
+
                     if ($variation_id) {
                         // Get the variation description
                         $variation_description = $this->get_variation_description($variation_id);
+
     
                         // Get the post content
                         $post_content = $post->post_content;
@@ -631,7 +634,6 @@ class Class_Woovp_Public {
 
         if ( $product->is_type( 'variable' ) && $available_product ) {
             $attrs = $this->vh_get_variation_data();
-
             if ( ! $attrs ) return $attributes;
 
             $flavour = str_replace('Flavour:', '', $attrs->post_excerpt);
@@ -674,12 +676,13 @@ class Class_Woovp_Public {
     
         // Query the database for variation data
         $product_data = $wpdb->get_row($wpdb->prepare("
-            SELECT ID, post_parent, post_excerpt
-            FROM {$wpdb->posts}
-            WHERE post_excerpt = %s
-            AND post_type = 'product_variation'
-            AND post_parent = %d
-        ", $product_slug, $product_id ) );
+        SELECT ID, post_parent, post_excerpt
+        FROM {$wpdb->posts}
+        WHERE post_excerpt LIKE %s
+        AND post_type = 'product_variation'
+        AND post_parent = %d
+        ", '%' . $wpdb->esc_like($product_slug) . '%', $product_id));
+    
     
         return $product_data;
     }
@@ -693,6 +696,8 @@ class Class_Woovp_Public {
             $url = home_url(add_query_arg(array(), $wp->request));
             $url_parts = explode('/', $url);
             $attribute_slug = end($url_parts);
+            if( count( $url_parts ) < 5 ) return; 
+
             if ($attribute_slug) {
                 ?>
                 <script type="text/javascript">
@@ -798,44 +803,6 @@ class Class_Woovp_Public {
         }
     }
 
-    public function frontent_script(){
-        ?>
-        <script> 
-            jQuery(document).ready(function($) {
-            // Function to copy text from one element to another
-            function copyVariationDescription() {
-                var variationDescription = $('.single-product-details .with-flavour-picker .woocommerce-variation-description').html();
-                if (variationDescription) {
-                    $('#tab-description').html('');
-                    $('#tab-description').html(variationDescription);
-                }
-            }
-
-            // Trigger the function when a variation is selected
-            $('.variations_form').on('show_variation', function(event, variation) {
-                copyVariationDescription();
-                copyFlavourToAdditionalInfo();
-            });
-
-            // Function to copy text from the selected flavour to the additional information tab
-            function copyFlavourToAdditionalInfo() {
-                var selectedFlavour = $('.single-product .selected_flavour').text();
-                $('.woocommerce-product-attributes-item--attribute_pa_flavour .woocommerce-product-attributes-item__value').html('<p>' + selectedFlavour + '</p>');
-            }
-
-            // Trigger the function on click of the additional information tab link
-            $('#tab-title-additional_information a').on('click', function(event) {
-                event.preventDefault(); // Prevent default anchor behavior
-                copyFlavourToAdditionalInfo();
-            });
-
-            // Trigger the function on page load in case a variation is pre-selected
-            copyVariationDescription();
-            });
-        </script>
-        <?php 
-    }
-
     public function add_inline_script_for_specific_product() {
         if ( is_product() ) {
             $product_id = get_queried_object_id();
@@ -848,8 +815,9 @@ class Class_Woovp_Public {
                     function copyVariationDescription() {
                         var variationDescription = $('.single-product-details .with-flavour-picker .woocommerce-variation-description').html();
                         if (variationDescription) {
-                            $('#tab-description p').html('');
-                            $('#tab-description p').html(variationDescription);
+                            $('#tab-description').html('');
+                            $('#tab-description').html(variationDescription);
+                            $('#tab-description').prepend('<h2>Description</h2>');
                         }
                     }
 
@@ -872,12 +840,19 @@ class Class_Woovp_Public {
                     });
 
                     // Trigger the function on page load in case a variation is pre-selected
-                    copyVariationDescription();
+                    // copyVariationDescription();
                     });
                 </script>
                     <?php 
                 // wp_add_inline_script('woovp_frontend_script', $inline_script);
             }
         }
+    }
+
+    public function vh_select_default_option( $args ){
+
+        if(count($args['options']) > 0 && $args['attribute'] == 'pa_nicotine-strength' ) //Ensure product variation isn't empty
+            $args['selected'] = $args['options'][0];
+        return $args;
     }
 }
