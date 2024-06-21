@@ -66,6 +66,8 @@ class Class_Woovp_Public {
 
         add_filter('woocommerce_dropdown_variation_attribute_options_args', [ $this, 'vh_select_default_option' ] ,10,1);
 
+        add_filter('woocommerce_add_to_cart_redirect', [ $this, 'custom_add_to_cart_redirect' ] );
+
         // add_action('init', [ $this, 'generate_variation_sitemap' ]);
 
         // Alternatively, schedule the sitemap generation daily
@@ -421,6 +423,34 @@ class Class_Woovp_Public {
             }
         }
         return $permalink;
+    }
+
+    private function get_attribute_slug( $product ) {
+        if( ! $product ) return;
+
+        $variation = wc_get_product($product);
+        $attributes = $variation->get_attributes();
+        $attribute_slug = '';
+        $color_attribute_slug   = 'pa_product-colour';
+        $flavour_attribute_slug = 'pa_flavour';
+
+        if (isset($attributes[$flavour_attribute_slug])) {
+            $term_slug = $attributes[$flavour_attribute_slug];
+            $term = get_term_by('slug', $term_slug, $flavour_attribute_slug);
+            if ($term) {
+                $attribute_slug = $term->slug;
+            }
+        }
+
+        if (isset($attributes[$color_attribute_slug])) {
+            $term_slug = $attributes[$color_attribute_slug];
+            $term = get_term_by('slug', $term_slug, $color_attribute_slug);
+            if ($term) {
+                $attribute_slug = $term->slug;
+            }
+        }
+
+        return user_trailingslashit($attribute_slug);
     }
 
     /**
@@ -854,5 +884,25 @@ class Class_Woovp_Public {
         if(count($args['options']) > 0 && $args['attribute'] == 'pa_nicotine-strength' ) //Ensure product variation isn't empty
             $args['selected'] = $args['options'][0];
         return $args;
+    }
+
+    public function custom_add_to_cart_redirect($url) {
+        // Get the product ID and variation ID from the request
+        $product_id   = isset($_REQUEST['product_id']) ? $_REQUEST['product_id'] : 0;
+        $variation_id = isset($_REQUEST['variation_id']) ? $_REQUEST['variation_id'] : 0;
+        // $variation_id = $this->vh_get_variation_data();
+        // $variation_id = $variation_id->ID;
+        // $slug = $this->get_attribute_slug( get_the_ID() );
+
+        // Check if the product is a variation
+        if ($variation_id > 0) {
+            // Get the parent product URL
+            $product = wc_get_product($product_id);
+            if ($product) {
+                $url = $product->get_permalink();
+            }
+        }
+    
+        return $url;
     }
 }
