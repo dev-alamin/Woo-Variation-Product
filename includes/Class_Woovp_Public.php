@@ -68,16 +68,24 @@ class Class_Woovp_Public {
 
         add_filter('woocommerce_add_to_cart_redirect', [ $this, 'custom_add_to_cart_redirect' ] );
 
-        // add_action('init', [ $this, 'generate_variation_sitemap' ]);
+        add_action( 'init', [ $this, 'run_sitemap_cron' ] );
 
-        // Alternatively, schedule the sitemap generation daily
-        if (!wp_next_scheduled('daily_variation_sitemap_generation')) {
-            wp_schedule_event(time(), 'daily', 'generate_variation_sitemap');
+        add_action('daily_variation_sitemap_generation', [ $this, 'generate_variation_sitemap' ]);
+
+    }
+
+    /**
+     * Schedule the daily variation sitemap generation cron job if it is not already scheduled.
+     *
+     * This function checks if the 'daily_variation_sitemap_generation' event is already scheduled. 
+     * If not, it schedules the event to run daily.
+     *
+     * @return void
+     */
+    public function run_sitemap_cron() {
+        if ( ! wp_next_scheduled( 'daily_variation_sitemap_generation' ) ) {
+            wp_schedule_event( time(), 'daily', 'daily_variation_sitemap_generation' );
         }
-
-        // Action to trigger the sitemap generation
-        add_action('generate_variation_sitemap', [ $this, 'generate_variation_sitemap' ]);
-
     }
 
     /**
