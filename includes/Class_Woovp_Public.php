@@ -384,6 +384,7 @@ class Class_Woovp_Public {
      * Includes product variations in search results.
      *
      * @param WP_Query $query The WP_Query instance.
+     * @since 1.0.1 ! is_admin() && $query->is_search() && $query->is_main_query() added
      */
     public function include_product_variations_in_search_results( $query ) {
         if (! is_admin() && $query->is_search() && $query->is_main_query() ) {

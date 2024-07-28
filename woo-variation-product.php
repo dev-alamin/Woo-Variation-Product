@@ -3,7 +3,7 @@
  * Plugin Name: Woo Variation Product for Woocommerce
  * Plugin URI:  almn.me/plugins/woo-variation-product
  * Description: To make individual products from variation, variable product type. This will help you to increase link for google.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      Al Amin
  * Author URI:  https://almn.me
  * Text Domain: woovp
@@ -115,7 +115,7 @@ spl_autoload_register( 'woovp_autoloader' );
      * @return void
      */
     private function define_constants() {
-        define('WOOVP_VERSION', '1.0.0');
+        define('WOOVP_VERSION', '1.0.1');
         define('WOOVP_PLUGIN', __FILE__);
         define('WOOVP_PLUGIN_URL', plugin_dir_url(__FILE__));
         define('WOOVP_PLUGIN_PATH', plugin_dir_path(__FILE__));
