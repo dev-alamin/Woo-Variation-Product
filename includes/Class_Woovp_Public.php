@@ -19,7 +19,7 @@ class Class_Woovp_Public {
      * Initializes the class and sets up the necessary hooks.
      */
     public function __construct() {
-        $this->target_products = [932];
+        $this->target_products = [932,469];
         $this->add_hooks();
     }
 
@@ -385,8 +385,8 @@ class Class_Woovp_Public {
      *
      * @param WP_Query $query The WP_Query instance.
      */
-    public function include_product_variations_in_search_results($query) {
-        if (is_search()) {
+    public function include_product_variations_in_search_results( $query ) {
+        if (! is_admin() && $query->is_search() && $query->is_main_query() ) {
             $query->set('post_type', array('product', 'product_variation'));
         }
     }
